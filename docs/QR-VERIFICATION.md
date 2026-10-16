@@ -3,7 +3,7 @@
 ## Evidence
 
 - Existing Next.js/React/PWA design, shared DataChannel protocol, local receiver, optional history, and old account mode preserved. No destructive auth/profile deletion.
-- All 32 unit/worker tests pass, including stable extension identity and deployed endpoint validation.
+- All 33 unit/worker tests pass, including stable extension identity, deployed endpoint validation, and avoiding unnecessary reconnection when a healthy session regains focus.
 - Lint/type checking, production Next.js build, Node signaling, Deno deployment sources, and MV3 ZIP build passed.
 - Deployed clipsync-signal Edge Function is ACTIVE; its live /health returned readiness.
 - Live database guest security transaction passed: service-role gate, consumed proof, phone cannot confirm, metadata transfer, invalid extra payload rejection, revocation, and anonymous RPC denial. Temporary test rows rolled back.

@@ -5,6 +5,7 @@ import {reconnectDelay} from '../protocol';
 
 export type PairSnapshot={session:PairSession|null;qr:PairingQr|null;code:string;online:boolean;error:string};
 const initial:PairSnapshot={session:null,qr:null,code:'',online:false,error:''};
+export function shouldRecoverSession(snapshot:PairSnapshot){return snapshot.session?.status==='approved'&&!snapshot.online;}
 const setupSchema=z.object({credentials:credentialsSchema,session:sessionSchema,qr:pairingSchema.optional(),code:z.string().optional()});
 export type PairProof={sessionId:string;secret:string}|{code:string};
 export type PairPreview={sessionId:string;deviceName:string;expiresAt:number;serviceId:string};

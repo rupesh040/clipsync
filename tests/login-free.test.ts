@@ -4,7 +4,7 @@ import QRCode from 'qrcode';
 import WebSocket from 'ws';
 import {PairingStore,RateLimits} from '../server/pairing-store';
 import {createSignalingService} from '../server/service';
-import {GuestClient} from '../packages/pairing/client';
+import {GuestClient,shouldRecoverSession} from '../packages/pairing/client';
 import {GuestSignaling} from '../packages/transport/guest-signaling';
 import {parsePairingQr,signalingUrl} from '../packages/pairing/protocol';
 import {ClipboardPeer} from '../packages/transport/peer';
@@ -25,6 +25,12 @@ test('public extension manifest key has the exact allowlisted stable ID',()=>{
  const key=Buffer.from(identity.key,'base64');assert.equal(createPublicKey({key,format:'der',type:'spki'}).asymmetricKeyType,'rsa');
  const id=createHash('sha256').update(key).digest('hex').slice(0,32).replace(/[0-9a-f]/g,value=>String.fromCharCode(97+parseInt(value,16)));assert.equal(id,identity.id);
  assert.equal(signalingUrl('wss://example.supabase.co/functions/v1/clipsync-signal/signal'),'wss://example.supabase.co/functions/v1/clipsync-signal/signal');
+});
+
+test('foregrounding a healthy session does not trigger reconnect; only an offline approved session recovers',()=>{
+ const store=new PairingStore('test'),host=store.create('PC'),phone=store.join({code:host.code},'Phone');store.confirm(host.credentials);
+ const state={session:store.state(phone.credentials),qr:null,code:'',online:true,error:''};
+ assert.equal(shouldRecoverSession(state),false);assert.equal(shouldRecoverSession({...state,online:false}),true);assert.equal(shouldRecoverSession({...state,session:null,online:false}),false);assert.equal(shouldRecoverSession({...state,session:{...state.session,status:'expired'},online:false}),false);
 });
 test('pairing is single-use, host-confirmed, expiring, role-bound, and revocable without accounts',()=>{
  let now=1_000_000;const store=new PairingStore('test',()=>now),host=store.create('PC');

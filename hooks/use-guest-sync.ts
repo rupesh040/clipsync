@@ -1,6 +1,6 @@
 'use client';
 import {useCallback,useEffect,useRef,useState,useSyncExternalStore} from 'react';
-import {GuestClient} from '@/packages/pairing/client';
+import {GuestClient,shouldRecoverSession} from '@/packages/pairing/client';
 import {GuestSignaling} from '@/packages/transport/guest-signaling';
 import {ClipboardPeer} from '@/packages/transport/peer';
 import type {ConnectionState} from '@/packages/protocol';
@@ -24,7 +24,7 @@ export function useGuestSync(){
   const peer=new ClipboardPeer({local:deviceId,remote:peerId,signaling,configuration:()=>signaling.configuration(setRelay),onState:(value,message)=>{setState(value);setDetail(message);},onClipboard:message=>{if(local.direction==='send')throw new Error('Receiving is disabled.');store.receive(message,peerName);setLastSync(Date.now());},onReceipt:time=>setLastSync(time)});
   manager.current=peer;void peer.start();return()=>{if(manager.current===peer)manager.current=null;void peer.stop(false);};
  },[client,store,sessionId,sessionStatus,deviceId,peerId,peerName,paused,revision,local.direction]);
- useEffect(()=>{const online=()=>{void client.reconnect().then(()=>setRevision(value=>value+1)).catch(()=>{});};const visible=()=>{if(document.visibilityState==='visible'&&client.getSnapshot().session?.status==='approved')online();};window.addEventListener('online',online);document.addEventListener('visibilitychange',visible);return()=>{window.removeEventListener('online',online);document.removeEventListener('visibilitychange',visible);};},[client]);
+ useEffect(()=>{const online=()=>{if(shouldRecoverSession(client.getSnapshot()))void client.reconnect().catch(()=>{});};const visible=()=>{if(document.visibilityState==='visible')online();};window.addEventListener('online',online);document.addEventListener('visibilitychange',visible);return()=>{window.removeEventListener('online',online);document.removeEventListener('visibilitychange',visible);};},[client]);
  useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>notify(''),6000);return()=>clearTimeout(timer);},[notice]);
  const send=useCallback(async(text:string,origin:'manual'|'user-read'='manual')=>{if(paused||local.direction==='receive'||!manager.current)throw new Error('Connect a peer and enable sending first. Nothing was queued.');await manager.current.send(text,origin);notify('Paired device acknowledged receipt.');},[paused,local.direction]);
  async function syncClipboard(){if(!navigator.clipboard?.readText)throw new Error('Clipboard reading is unsupported. Incoming text is unaffected.');let text:string;try{text=await navigator.clipboard.readText();}catch{throw new Error('Clipboard reading was denied. Incoming text still works.');}await send(text,'user-read');}
