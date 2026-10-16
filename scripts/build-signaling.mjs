@@ -1,0 +1,16 @@
+import {build} from 'esbuild';
+import {mkdir,readFile,writeFile,copyFile} from 'node:fs/promises';
+await build({entryPoints:['server/index.ts'],outfile:'server/dist/index.cjs',bundle:true,platform:'node',target:'node22',format:'cjs',external:['bufferutil','utf-8-validate'],legalComments:'none'});
+console.log('Built standalone signaling service: server/dist/index.cjs');
+await build({entryPoints:['server/edge.ts'],outfile:'server/dist/edge.js',bundle:true,platform:'neutral',mainFields:['module','main'],format:'esm',target:'es2022',legalComments:'none'});
+console.log('Built Supabase WebSocket deployment: server/dist/edge.js');
+const directory='server/dist/edge-source';
+await mkdir(directory,{recursive:true});
+const edge=(await readFile('server/edge.ts','utf8')).replace("'../packages/pairing/protocol'","'./protocol.ts'").replace("'../packages/transport/signals'","'./signals.ts'").replace("import identity from '../extension/identity.json';","import identity from './identity.json' with {type:'json'};");
+const protocol=(await readFile('packages/pairing/protocol.ts','utf8')).replace("'../transport/signals'","'./signals.ts'");
+await writeFile(directory+'/index.ts',edge);
+await writeFile(directory+'/protocol.ts',protocol);
+await copyFile('packages/transport/signals.ts',directory+'/signals.ts');
+await copyFile('extension/identity.json',directory+'/identity.json');
+const zod=JSON.parse(await readFile('node_modules/zod/package.json','utf8')).version;
+await writeFile(directory+'/deno.json',JSON.stringify({imports:{zod:'npm:zod@'+zod}},null,2));

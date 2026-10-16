@@ -1,3 +1,5 @@
+> **Legacy optional account mode:** This runbook describes the preserved Supabase account workspace. For the new default, account-free QR flow use [QR-PAIRING.md](QR-PAIRING.md). SMTP and Supabase are not needed for login-free pairing.
+
 # Clipsync PWA + PC extension deployment
 
 ## Release state

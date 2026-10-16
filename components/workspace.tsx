@@ -11,10 +11,16 @@ import { SyncPreferences } from '@/components/settings/sync-preferences';
 import { P2PHelp } from '@/components/p2p-help';
 import { contentType, copyText, type Clip } from '@/lib/clipboard';
 import { backend } from '@/lib/supabase';
+import { GuestWorkspace } from './guest-workspace';
+import { SyncProvider } from './sync-provider';
 const navigation = [{ id: 'dashboard', name: 'Overview', icon: LayoutGrid }, { id: 'history', name: 'Clipboard history', icon: History }, { id: 'devices', name: 'Devices', icon: Laptop }, { id: 'activity', name: 'Activity', icon: Activity }, { id: 'settings', name: 'Settings', icon: Settings2 }, { id: 'help', name: 'Help & support', icon: HelpCircle }];
 function time(value: string) { return new Date(value).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
 function Dialog({ title, children, close }: { title: string; children: React.ReactNode; close: () => void }) { const dialog = useRef<HTMLDialogElement>(null); const [message, setMessage] = useState(''); useEffect(() => { const previous = document.activeElement as HTMLElement; const receive = (event: Event) => setMessage((event as CustomEvent<string>).detail); window.addEventListener('clipsync-notice', receive); dialog.current?.showModal(); return () => { window.removeEventListener('clipsync-notice', receive); previous?.focus(); }; }, []); return <dialog ref={dialog} onCancel={close} onClick={event => { if (event.target === event.currentTarget) close(); }}><div className="dialog-heading"><h2>{title}</h2><button className="icon-button" aria-label="Close dialog" onClick={close}><X size={20}/></button></div>{children}{message && <p className="dialog-notice" role="status">{message}</p>}</dialog>; }
 export function Workspace({ page }: { page: string }) {
+  const [account,setAccount]=useState(false);
+  return account?<SyncProvider><button className="legacy-mode-return button" onClick={()=>setAccount(false)}>Return to login-free QR sync</button><AccountWorkspace page={page}/></SyncProvider>:<GuestWorkspace page={page} onAccount={()=>setAccount(true)}/>;
+}
+function AccountWorkspace({ page }: { page: string }) {
   const sync = useClipsync();
   const now = useClock();
   const reduced = useReducedMotion();

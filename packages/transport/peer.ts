@@ -58,7 +58,7 @@ export class ClipboardPeer {
       }, 10_000);
     } catch {
       if (this.stopped) return;
-      this.options.onState('failed', 'Unable to authorize this device. Sign in and verify pairing.');
+      this.options.onState('failed', 'Unable to authorize this device. Verify pairing or create a fresh session.');
       await this.stop(false);
     }
   }

@@ -4,6 +4,7 @@ out
 .env
 .env.*
 !.env.example
+!.env.signaling.example
 .vercel
 .supabase
 supabase/.temp
@@ -12,6 +13,7 @@ coverage
 playwright-report
 test-results
 extension/dist
+server/dist
 public/downloads/*.zip
 *.log
 *.pem

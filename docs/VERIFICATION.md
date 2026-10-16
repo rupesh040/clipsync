@@ -1,3 +1,5 @@
+> **Previous account-based release evidence:** Current login-free results are in [QR-VERIFICATION.md](QR-VERIFICATION.md). This page is retained as historical evidence, not a claim of QR production deployment.
+
 # Verification and release status
 
 ## Current automated evidence

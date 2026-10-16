@@ -1,16 +1,27 @@
-# Clipsync
+# Clipsync — login-free QR clipboard sync
 
-A Next.js PWA and opt-in Chrome/Edge extension for clipboard text delivery over WebRTC. The existing responsive interface, account authentication, confirmed pairing, themes, and install controls are preserved. No native mobile framework is used.
+Next.js 16.4.2 / React 19.3.1 / TypeScript PWA, plus a Chrome/Edge Manifest V3 extension and encrypted WebRTC DataChannels. The existing design and optional old account workspace are preserved.
 
-## What works in this release
+## Use
 
-- The PC extension detects copy events on explicitly permitted webpages. Optional desktop clipboard polling is best effort, not an OS-wide guarantee.
-- An authenticated WebRTC DataChannel delivers text to the selected authorized phone/browser. Received text updates React state immediately; no paste field or reload is required.
-- The phone displays complete multiline text, source, time, and a user-initiated Copy button with a manual-selection fallback.
-- Optional Sync Clipboard reads the phone clipboard only after a tap. The extension can write received text to the PC clipboard when enabled and supported.
-- Pause, disconnect, reconnect, direction controls, bounded deduplication/echo protection, acknowledgements, and optional local history are included.
+Open https://clipsync-orcin.vercel.app/dashboard/ after this release deploys. Download the extension from /downloads/clipsync-extension.zip, extract it, then Load unpacked in chrome://extensions or edge://extensions (116+).
 
-## Start and build
+1. Open the PC extension and choose Pair a device.
+2. On the phone open Clipsync → Scan to Pair. Review the PC, request connection, compare verification codes, and confirm on the PC.
+3. Enable PC clipboard capture and allow copy capture only on trusted sites. Supported copies appear automatically in the open phone app.
+4. Tap Copy complete text on the phone. Optional reverse Sync Clipboard reads once after a tap; PC writes are separately opt-in.
+
+No email, password, registration, SMTP, or end-user Supabase login is required. Camera-denied users can review the random manual pairing code instead.
+
+## Live signaling
+
+The deployed Supabase Edge Function uses temporary role-bound capabilities, not Supabase Auth. Its WSS endpoint is in lib/deployment.ts. The existing project stores only private expiring room metadata, hashed capabilities, rate counters, and short-lived SDP/ICE. Clipboard text travels on the DataChannel, never through a database clipboard queue.
+
+The service survives Edge worker rotation using the shared private session store. Browser tokens remain memory-only; page reload/helper loss requires pairing again. Unused pairing credentials expire after five minutes; approved sessions after two hours. Either peer can revoke.
+
+The extension has a fixed public manifest key for a stable unpacked ID. It is not a permanent secret or hardware identity. The server allows that exact origin and the configured website/development origins.
+
+## Local development
 
 Use Node 22.13+ within Node 22:
 
@@ -20,42 +31,21 @@ npm run setup:env
 npm run dev
 ```
 
-Open http://localhost:3000. Without valid public Supabase configuration the app stays in setup mode. The setup script never overwrites an existing .env.local.
+The default endpoint is the deployed WSS service. Public overrides: NEXT_PUBLIC_SITE_URL, NEXT_PUBLIC_SIGNALING_URL, NEXT_PUBLIC_SIGNALING_SERVICE_ID. Never place private keys in NEXT_PUBLIC_ variables.
+
+For fully local standalone signaling, set NEXT_PUBLIC_SIGNALING_URL=ws://localhost:3012/signal, then run npm run build:signaling and npm run start:signaling in another terminal. This alternative uses in-memory sessions; it is not required for the deployed Edge service. See .env.signaling.example.
+
+## Verify and deploy
 
 ```powershell
 npm run check
-npm start
+npm audit --omit=dev
 ```
 
-The check runs lint, type checking, unit/worker tests, and the production build. The prebuild also creates the extension in extension/dist and its downloadable ZIP at public/downloads/clipsync-extension.zip. For extension-only packaging use npm run build:extension.
+The production build creates the PWA, extension ZIP, and both Node/Edge signaling artifacts. The detailed setup/security model is in docs/QR-PAIRING.md; actual evidence and remaining real-device checks are in docs/QR-VERIFICATION.md.
 
-## Deployment and pairing
+The older Supabase account mode remains under Settings → Optional legacy account features. No account/auth records were destructively removed. Historical docs/DEPLOYMENT.md and docs/VERIFICATION.md apply only to that mode.
 
-Follow [the deployment runbook](docs/DEPLOYMENT.md) for Vercel variables, Supabase SMTP/email OTP, exact auth redirects, extension installation, pairing, short-lived TURN credentials, and acceptance checks.
+## Boundaries
 
-Public configuration: NEXT_PUBLIC_SITE_URL, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or legacy NEXT_PUBLIC_SUPABASE_ANON_KEY). Server-only TURN configuration and the exact extension-origin allowlist are documented in .env.example. Never expose service-role keys or permanent TURN secrets.
-
-The connected Mumbai Supabase project has all three timestamped migrations applied, including authenticated SDP/ICE signaling and revocation of the legacy clipboard-upload RPC. Do not reapply them there. A new environment needs all migrations in timestamp order.
-
-## Privacy and platform boundaries
-
-Clipboard payloads travel through the DataChannel, directly or through a TURN relay, not through a Supabase clipboard queue. Supabase retains account/device metadata and short-lived SDP/ICE, which can reveal network addresses. DataChannels encrypt transport; this is not independent hardware identity or protection against an account/service compromise.
-
-History is off by default; received text stays in memory. Optional history stores up to 50 plaintext entries locally for 1, 7, or 30 days. Expired entries are pruned when the app is used, not by a background OS deletion guarantee. Disabling local history removes saved entries. Old cloud records are not silently migrated: Settings provides an explicit legacy-cloud deletion action; existing server expiry/cleanup remains active.
-
-Both peers must be active, authorized, and online. Mobile browsers can suspend. No delivery is promised while the phone is closed, suspended, or offline. No offline clipboard queue, native Android app, APK/IPA, push notification, or universal system clipboard monitor is included. Service-worker updates wait rather than forcibly activating over a live connection.
-
-## Verification and release status
-
-See [verification evidence and remaining acceptance checks](docs/VERIFICATION.md) and [architecture/security details](docs/P2P-ARCHITECTURE.md). Automated tests and a real-browser WebRTC loopback passed; real extension-to-phone, mobile installation, and restrictive-network TURN acceptance remain pending. Production SMTP and deployment credentials/settings still require account-owner configuration. The older private Sites URL is not this release and has not been overwritten.
-
-## Structure
-
-- app/, components/, hooks/, lib/: existing PWA and receiver UI.
-- packages/protocol/: shared versioned, runtime-validated message protocol.
-- packages/transport/: WebRTC manager, authenticated signaling, ICE configuration.
-- extension/: Manifest V3 worker, offscreen bridge, popup, and permitted-site capture.
-- supabase/: three migrations and transactional security tests.
-- scripts/, tests/, docs/: repeatable packaging, verification, browser harness, and runbooks.
-
-Design inspiration: https://diagramdesign.dev/ — original compositions retaining the existing editorial hierarchy and restrained accent.
+Keep both peers active and online. No closed/suspended/offline delivery guarantee or universal PC/mobile clipboard monitor is claimed. Capture is opt-in, history defaults off, and optional local history is plaintext and capped at 50 entries. Restrictive networks may need a separately provisioned TURN relay; support is implemented, but live relay acceptance still needs real credentials. No native mobile app or APK/IPA is included.

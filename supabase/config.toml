@@ -37,3 +37,6 @@ otp_expiry = 600
 email_sent = 2
 token_refresh = 150
 sign_in_sign_ups = 30
+
+[functions.clipsync-signal]
+verify_jwt = false
