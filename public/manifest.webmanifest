@@ -1,0 +1,22 @@
+{
+  "id": "/",
+  "name": "Clipsync",
+  "short_name": "Clipsync",
+  "description": "Copy here. Paste anywhere. A private connection between your screens.",
+  "start_url": "/dashboard/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3d7257",
+  "lang": "en",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Open clipboard", "url": "/dashboard/" },
+    { "name": "Manage devices", "url": "/devices/" }
+  ]
+}

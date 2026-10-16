@@ -1,1 +1,44 @@
-{"name":"clipsync","version":"1.0.0","private":true,"scripts":{"dev":"next dev --hostname 0.0.0.0","build":"next build","typecheck":"tsc --noEmit"},"dependencies":{"next":"^16.0.0","react":"^19.2.0","react-dom":"^19.2.0","@supabase/supabase-js":"^2.76.0","framer-motion":"^12.23.24","lucide-react":"^0.468.0","react-hook-form":"^7.65.0","@hookform/resolvers":"^5.2.2","zod":"^4.1.12"},"devDependencies":{"typescript":"^5.9.3","@types/node":"^22.18.0","@types/react":"^19.2.0","@types/react-dom":"^19.2.0","tailwindcss":"^4.1.14","@tailwindcss/postcss":"^4.1.14"}}
+{
+  "name": "clipsync",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.13.0 <23" },
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "start": "next start",
+    "prebuild": "node scripts/check-public-env.mjs",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build",
+    "setup:env": "node scripts/setup-env.mjs",
+    "verify:backend": "tsx --env-file=.env.local scripts/verify-backend.ts",
+    "icons": "node scripts/generate-icons.mjs"
+  },
+  "dependencies": {
+    "next": "16.4.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "@supabase/supabase-js": "2.118.0",
+    "framer-motion": "^12.23.24",
+    "lucide-react": "^0.468.0",
+    "react-hook-form": "^7.65.0",
+    "@hookform/resolvers": "^5.2.2",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@next/env": "16.4.2",
+    "typescript": "^5.9.3",
+    "@types/node": "^22.18.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "tailwindcss": "^4.1.14",
+    "@tailwindcss/postcss": "^4.1.14",
+    "eslint": "^10.0.0",
+    "eslint-config-next": "16.4.2",
+    "tsx": "^4.20.6",
+    "sharp": "^0.35.5"
+  }
+}
