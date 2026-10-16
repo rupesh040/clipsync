@@ -10,7 +10,9 @@ export function useClipsync() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('Waiting for setup');
   const [notice, setNotice] = useState('');
-  const [paused, setPaused] = useState(false);
+  const [paused, setPausedState] = useState(false);
+  const setPaused = useCallback((value: boolean) => { setPausedState(value); sessionStorage.setItem('clipsync-paused', String(value)); }, []);
+  useEffect(() => { setPausedState(sessionStorage.getItem('clipsync-paused') === 'true'); }, []);
   const [history, setHistory] = useState(false);
   const [retention, setRetention] = useState(7);
   const [deviceId, setDeviceId] = useState('');
