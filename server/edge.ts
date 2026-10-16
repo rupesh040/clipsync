@@ -47,7 +47,7 @@ Deno.serve(async request=>{
    try{
     const raw=JSON.parse(event.data);id=typeof raw?.id==='string'?raw.id:undefined;const message=requestSchema.parse(raw);
     if(message.op==='create'||message.op==='join'){if(auth)throw new Error('Revoke current session first.');}
-    else if(message.op!=='inspect'&&message.op!=='attach'){if(!auth||message.auth.sessionId!==auth.sessionId||message.auth.token!==auth.token)throw new Error('Session authorization rejected');}
+    else if(message.op!=='inspect'&&message.op!=='attach'){if(!auth)throw new Error('Attach this authorized session first.');if(message.auth.sessionId!==auth.sessionId||message.auth.token!==auth.token)throw new Error('Session authorization rejected');}
     let result=await rpc(message,connection,ip);
     if(message.op==='create'||message.op==='join')auth={sessionId:result.credentials.sessionId,token:result.credentials.token};
     if(message.op==='attach')auth=message.auth;

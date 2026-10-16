@@ -12,6 +12,8 @@ export type PairPreview={sessionId:string;deviceName:string;expiresAt:number;ser
 export class GuestClient{
  private socket:WebSocket|null=null;
  private opening:Promise<void>|null=null;
+ private attachedSocket:WebSocket|null=null;
+ private attaching:Promise<void>|null=null;
  private credentials:Credentials|null=null;
  private snapshot:PairSnapshot=initial;
  private listeners=new Set<()=>void>();
@@ -34,11 +36,11 @@ export class GuestClient{
   this.opening=new Promise<void>((resolve,reject)=>{
    const socket=this.factory(endpoint);this.socket=socket;let opened=false;
    const timeout=setTimeout(()=>{socket.close();reject(new Error('Signaling connection timed out.'));},10_000);
-   socket.onmessage=event=>this.receive(event.data);
+   socket.onmessage=event=>{if(this.socket===socket)this.receive(event.data);};
    socket.onopen=()=>{opened=true;clearTimeout(timeout);resolve();};
    socket.onerror=()=>{clearTimeout(timeout);reject(new Error('Signaling is unavailable. Check the endpoint and allowed origin.'));};
    socket.onclose=event=>{
-    clearTimeout(timeout);if(this.socket!==socket)return;this.socket=null;this.update({online:false});
+    clearTimeout(timeout);if(this.socket!==socket)return;this.socket=null;this.attachedSocket=null;this.update({online:false});
     for(const pending of this.pending.values()){clearTimeout(pending.timer);pending.reject(new Error('Signaling disconnected.'));}this.pending.clear();
     if(!opened)reject(new Error('Signaling connection was rejected. Check the origin allowlist.'));
     if(event.code===4403||event.code===4409){this.credentials=null;this.update({qr:null,code:'',error:event.code===4409?'Session opened elsewhere. Pair again.':'Session expired or revoked. Pair again.',session:this.snapshot.session?{...this.snapshot.session,status:event.code===4409?'revoked':'expired'}:null});return;}
@@ -47,7 +49,14 @@ export class GuestClient{
   }).finally(()=>{this.opening=null;});
   return this.opening;
  }
- private async reattach(){await this.connect();if(this.credentials){const value=await this.request('attach',{},true);this.attempt=0;this.update({session:sessionSchema.parse((value as {session:unknown}).session),online:true,error:''});}}
+ private async attachCurrent(){
+  if(this.attachedSocket===this.socket&&this.snapshot.online)return;
+  if(this.attaching)return this.attaching;
+  const socket=this.socket;
+  this.attaching=(async()=>{const value=await this.request('attach',{},true);if(this.socket!==socket||!this.credentials)throw new Error('Connection superseded. Retry.');this.attachedSocket=socket;this.attempt=0;this.update({session:sessionSchema.parse((value as {session:unknown}).session),online:true,error:''});})().finally(()=>{this.attaching=null;});
+  return this.attaching;
+ }
+ private async reattach(){await this.connect();if(this.credentials)await this.attachCurrent();}
  private receive(raw:unknown){
   try{
    if(typeof raw!=='string'||raw.length>80_000)return;
@@ -69,6 +78,7 @@ export class GuestClient{
  }
  async request(op:string,values:Record<string,unknown>={},authorized=true):Promise<unknown>{
   await this.connect();if(authorized&&!this.credentials)throw new Error('Pair this device first.');
+  if(authorized&&op!=='attach')await this.attachCurrent();
   const id=crypto.randomUUID(),auth=this.credentials?{sessionId:this.credentials.sessionId,token:this.credentials.token}:undefined;
   return new Promise((resolve,reject)=>{
    const timer=setTimeout(()=>{this.pending.delete(id);reject(new Error('Signaling request timed out.'));},10_000);
@@ -76,7 +86,7 @@ export class GuestClient{
    try{this.socket!.send(JSON.stringify({id,op,...values,...(authorized?{auth}:{})}));}catch{clearTimeout(timer);this.pending.delete(id);reject(new Error('Signaling is disconnected.'));}
   });
  }
- private accept(raw:unknown){const value=setupSchema.parse(raw);this.credentials=value.credentials;this.update({session:value.session,qr:value.qr||null,code:value.code||'',online:true,error:''});}
+ private accept(raw:unknown){const value=setupSchema.parse(raw);this.credentials=value.credentials;this.attachedSocket=this.socket;this.attempt=0;this.update({session:value.session,qr:value.qr||null,code:value.code||'',online:true,error:''});}
  async create(name:string){await this.reset();this.accept(await this.request('create',{name},false));}
  async inspect(proof:PairProof):Promise<PairPreview>{return z.object({sessionId:z.uuid(),deviceName:z.string().max(60),expiresAt:z.number(),serviceId:z.string()}).strict().parse(await this.request('inspect',{proof},false));}
  async join(proof:PairProof,name:string){if(this.credentials)throw new Error('Disconnect the current session before joining another.');this.accept(await this.request('join',{proof,name},false));}
@@ -84,5 +94,5 @@ export class GuestClient{
  async revoke(){if(this.credentials)await this.request('revoke');this.close();this.update({session:null,qr:null,code:'',online:false,error:''});}
  async reset(){if(this.credentials)await this.revoke();else this.close();}
  async reconnect(){if(!this.credentials)throw new Error('This session is no longer available. Pair again.');await this.reattach();}
- close(){this.stopped=true;clearTimeout(this.retry);this.socket?.close();this.socket=null;this.credentials=null;for(const pending of this.pending.values()){clearTimeout(pending.timer);pending.reject(new Error('Session closed.'));}this.pending.clear();this.update({online:false,session:null,qr:null,code:''});}
+ close(){this.stopped=true;clearTimeout(this.retry);this.socket?.close();this.socket=null;this.attachedSocket=null;this.credentials=null;for(const pending of this.pending.values()){clearTimeout(pending.timer);pending.reject(new Error('Session closed.'));}this.pending.clear();this.update({online:false,session:null,qr:null,code:''});}
 }

@@ -85,3 +85,11 @@ test('an expired server capability can be replaced by a fresh pairing without re
  try{await client.create('PC');const old=client.getSnapshot().session?.sessionId;now+=300_001;await assert.rejects(client.request('authorize'));assert.equal(client.getSnapshot().session?.status,'expired');await client.create('Fresh PC');assert.notEqual(client.getSnapshot().session?.sessionId,old);assert.equal(client.getSnapshot().session?.status,'waiting');}
  finally{client.close();await service.close();}
 });
+
+test('authorized operations reattach a newly opened socket before revocation after abrupt network loss',async()=>{
+ const origin='http://localhost:3000',service=createSignalingService({origins:[origin],serviceId:'test'});await new Promise<void>(resolve=>service.server.listen(0,'127.0.0.1',resolve));
+ const address=service.server.address();if(!address||typeof address==='string')throw new Error('No port');const sockets:WebSocket[]=[];
+ const client=new GuestClient('ws://127.0.0.1:'+address.port+'/signal','test',url=>{const socket=new WebSocket(url,{origin});sockets.push(socket);return socket as unknown as globalThis.WebSocket;});
+ try{await client.create('Network test PC');const room=client.getSnapshot().session!.sessionId;sockets[0].terminate();await client.revoke();assert.equal(client.getSnapshot().session,null);assert(service.store.states(room).every(state=>state.status==='revoked'));assert(sockets.length>=2);}
+ finally{client.close();await service.close();}
+});
