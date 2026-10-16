@@ -11,6 +11,8 @@ supabase/.branches
 coverage
 playwright-report
 test-results
+extension/dist
+public/downloads/*.zip
 *.log
 *.pem
 *.key

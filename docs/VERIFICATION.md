@@ -1,42 +1,43 @@
 # Verification and release status
 
-## Local release checks
+## Current automated evidence
 
-- Clean `npm ci`: passed; dependency peer/advisory warnings are documented below.
-- `npm run lint`: passed with zero warnings, without disabling React/Next lint rules.
-- `npm run typecheck`: passed.
-- `npm test`: all 12 tests passed.
-- `npm run build`: passed, including the public-credential prebuild guard.
-- `npm audit --omit=dev`: zero runtime vulnerabilities.
-- Production server: all 11 application/auth routes plus manifest, worker, offline page, and 192/512px icons returned HTTP 200. Manifest and worker content types are correct; `/sw.js` returns `Cache-Control: no-store` and `nosniff`.
-- Desktop browser: the configured project shows sign-in required, not a fake connected session. Install App opened accessible desktop fallback instructions; dismissing returned focus to its button. No browser console errors were captured.
-- Dashboard and install control: no horizontal overflow at 360, 390, 768, 1024, and 1440px. The explicit viewport override was reset after checking.
-- Mobile/native install and browser service-worker offline execution remain acceptance items; VM-based worker tests and served assets do not prove an OS installation.
+- ESLint: zero warnings; generated extension bundles are excluded, not lint-rule exceptions.
+- TypeScript: Next route generation and strict type checking passed for web, shared transport, extension, and tests.
+- Unit/worker tests: all 24 passed, including storage failure not blocking live receiving, repeat-copy echo recovery, and cancellation during asynchronous authorization/signaling setup.
+- Production Next.js build and Manifest V3 bundling/ZIP generation passed.
+- Real-browser harness: two actual RTCPeerConnections delivered original multiline Unicode text in both directions, received acknowledgements, updated the actual React useSyncExternalStore receiver, and reconnected. Console errors were empty. Signaling was an explicitly test-only memory adapter; no real account or phone was involved.
+- Live Supabase transactional P2P suite passed: confirmed account-owned pairing, expired/consumed-code rejection, signal authorization, cross-account rejection, revocation, expiry visibility, forbidden extra payloads, and rejection of the old clipboard-upload RPC. Temporary test data rolled back.
+- Runtime npm audit: zero vulnerabilities; the full development audit reports five high-severity findings described below.
+- Production HTTP checks: all 16 checked application/static/download paths returned 200. Service worker is JavaScript with no-store; the extension download is application/zip.
+- ICE endpoint access-control checks: same-origin unsigned POST returned 401; untrusted-origin POST/OPTIONS returned 403; same-origin preflight returned 204.
+- Receiver layout has no horizontal overflow at 360, 390, 768, 1024, and 1440px. Viewport override was reset. Browser console error list was empty.
+- Read-only backend verification reached live Auth, then correctly reported authenticated session checks pending (exit 2); no test-user token was supplied.
+- Previously verified PWA manifest/icons, safe offline worker caching, no signed-in/API caching, and desktop layouts remain regression-tested. Actual OS installation is not implied by these tests.
 
-## Completed configuration
+## Configuration applied
 
-- Preserved the existing Next.js interface and routes; added PKCE callback, environment validation, install UI, original PWA icons, manifest, privacy-preserving service worker, and offline fallback.
-- Added ESLint, repeatable Node 22 setup, a lockfile-verified install, CI, build-time rejection of public secret credentials, unit/worker tests, and Vercel configuration.
-- Created the **Clipsync** Supabase project in **rupesh's projects**, **Mumbai / ap-south-1**, reference `hdwhtaovvfiyzthfrysr`.
-- Applied `20261016063144_clipsync_initial_schema` and `20261016063158_clipsync_production_hardening`. Local migration filenames match the remote migration history.
-- Configured the project URL and public publishable key in ignored local `.env.local`; `.env.example` contains no real credentials.
-- Verified RLS on all six application tables, an active hourly cleanup job, schema version 2, and `devices`, `clips`, and `profiles` in the Realtime publication.
-- Executed the real PostgreSQL transaction suite successfully, including account isolation, explicit device pairing, unapproved/revoked device rejection, direct-authorization rejection, per-device receipt idempotency, self-receipt rejection, rate limiting despite deletion, expiry filtering, and disabling history. All temporary test accounts, clips, and devices rolled back. The application remains empty, not seeded with demo data.
-- Reached the live Supabase Auth endpoint using public project configuration. An end-user email session and browser Realtime delivery are not yet verified.
+Supabase project hdwhtaovvfiyzthfrysr is in rupesh's projects, Mumbai. All three timestamped migrations are installed, including 20261016074733_clipsync_p2p_signaling. Its local filename matches the remote migration history. Public connection values are present only in ignored .env.local.
 
-## Required account actions
+New clipboard data does not use the database. The legacy send_clip grant is revoked from authenticated clients. Account/device metadata and short-lived SDP/ICE use Supabase. Local history defaults off; the existing database cleanup remains for legacy records. No real clipboard examples or user sessions were seeded.
 
-1. **GitHub:** the connector authenticated as `rupesh040`, and a focused search found no Clipsync repository. Its tools do not create repositories; the browser is at GitHub sign-in. Create an empty private repository and push the committed `main` branch using the runbook. No GitHub repository URL or pushed branch is claimed yet.
-2. **Vercel:** connection remains pending. Import the repository, set production public environment variables, and deploy. No Vercel production URL exists yet. The earlier `niftyfig.chatgpt.site` URL is a separate older deployment and is not a Vercel deployment of these changes.
-3. **Supabase dashboard:** the connected database tools do not expose hosted Auth settings, and dashboard access requires login. Set the production Site URL, exact `/auth/callback/` redirect URLs, SMTP, session/security settings, and email rate limits as described in the runbook. The local TOML does not apply these hosted settings automatically.
-4. **Acceptance:** verify email sign-in in the originating browser, actual two-browser send/copy in both directions, Android native install, iOS Add to Home Screen/standalone launch, and real device offline behavior. Desktop layout checks and unit-tested service worker logic do not substitute for these checks.
+## Still required externally
 
-## Dependency and advisor findings
+1. Production SMTP and email template containing both numeric Token and ConfirmationURL. Prior built-in mail delivery returned 429 over_email_send_rate_limit. The OTP UI and clearer errors do not by themselves configure the provider.
+2. GitHub destination/review/commit/push and a real Vercel deployment with canonical origin, exact Auth callbacks, and extension-origin allowlist. No new commit or Vercel deployment is claimed.
+3. Real PC Chrome/Edge extension installation and email sign-in, pairing with a physical Android phone, automatic permitted-site copy delivery, phone Copy, optional reverse sync, and permission-denied fallbacks.
+4. Real mobile PWA installation, standalone email OTP, offline reopening, background suspension/recovery, and service-worker update behavior.
+5. A provisioned TURN service, private shared secret, firewall/TLS configuration, and relay-forced cross-network acceptance. No TURN service/credentials were supplied, so relay fallback is implemented but not live-tested.
+6. Actual Chrome offscreen clipboard permissions/lifecycle checks on target OS/browser. The extension does not promise monitoring of every PC application or a closed browser.
 
-The runtime-only npm audit reports **zero vulnerabilities**. The full audit reports **five high-severity development-tool findings** in the Next ESLint → fast-glob → micromatch → braces chain. The suggested automatic fix downgrades the Next lint configuration across major versions; it was not applied. Track the [braces advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) before declaring the whole toolchain advisory-free. ESLint 10 runs successfully with the current Next config; some included plugins still publish ESLint 9 peer metadata, producing npm peer warnings during installation.
+See DEPLOYMENT.md for the executable runbook and acceptance matrix.
 
-The Supabase security advisor reported two intentional deny-all tables without direct policies (`pairings` and private rate limits), plus nine authenticated SECURITY DEFINER RPC notices. These functions are intentionally exposed for bounded account-owned operations, have empty search paths and explicit identity/ownership checks, and are tested through database roles. Private helper functions revoke client execution. They are not claims of independent hardware/device-key authentication. Review [RLS enabled without a policy](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy) and [authenticated SECURITY DEFINER functions](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable) when changing this authorization design.
+## Dependency and advisor notes
 
-## Install and privacy contract
+Runtime dependencies were audit-clean. Five high-severity development-tool advisories remain in Next ESLint's fast-glob → micromatch → braces chain; the suggested automatic major-version downgrade was not applied. Track https://github.com/advisories/GHSA-vfj7-8cjw-p6xm. Some lint dependencies still declare ESLint 9 peer metadata while this project uses ESLint 10.
 
-Install App requests the browser’s native prompt only after it is available. Otherwise it presents Android, iOS/iPadOS, or desktop instructions. An accepted prompt says only that installation was requested; the UI hides after `appinstalled` or standalone detection. Declining does not fake success. Clipboard data, auth codes, API responses, and signed-in navigation are excluded from the offline cache. No APK/IPA is produced, and installation does not permit unrestricted background clipboard access.
+The live security advisor reports two intentional deny-all pairing/private-rate-limit tables and ten authenticated SECURITY DEFINER RPCs. The functions require explicit account/device checks and restricted grants; private helpers are not client-executable. These are not independent hardware-key authentication. It also reports leaked-password protection disabled; current UI is email OTP/link-only, but review this hosted setting before enabling password authentication.
+
+- [Deny-all RLS tables](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy)
+- [Authenticated definer RPC review](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable)
+- [Leaked-password protection](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)

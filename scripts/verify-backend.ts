@@ -19,13 +19,15 @@ if (!configuration.configured) {
       const identity = await client.auth.getUser(token);
       if (identity.error || !identity.data.user) throw new Error('The test-user access token is invalid or expired.');
       const health = await client.rpc('health_check');
-      if (health.error || health.data?.schema_version !== 2) throw new Error('Schema verification failed. Apply both migrations.');
-      const reads = await Promise.all([client.from('profiles').select('id').single(), client.from('devices').select('id').limit(1), client.from('clips').select('id').limit(1)]);
+      if (health.error || health.data?.schema_version !== 2) throw new Error('Base schema verification failed. Apply the required timestamped migrations.');
+      const reads = await Promise.all([client.from('profiles').select('id').single(), client.from('devices').select('id').limit(1), client.from('rtc_signals').select('id').limit(1)]);
       if (reads.some(result => result.error)) throw new Error('An authenticated database read failed. Check migrations and RLS policies.');
       const foreign = await client.from('devices').select('id').neq('user_id', identity.data.user.id).limit(1);
       if (foreign.error || foreign.data?.length) throw new Error('Account isolation check failed.');
       await client.realtime.setAuth(token);
-      const channel = client.channel('configuration-verification').on('postgres_changes', { event: '*', schema: 'public', table: 'devices', filter: `user_id=eq.${identity.data.user.id}` }, () => {});
+      const channel = client.channel('configuration-verification')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'devices', filter: `user_id=eq.${identity.data.user.id}` }, () => {})
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rtc_signals', filter: `user_id=eq.${identity.data.user.id}` }, () => {});
       await new Promise<void>((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error('Realtime subscription timed out.')),10000);
         channel.subscribe(status => { if (status === 'SUBSCRIBED') { clearTimeout(timer); resolve(); } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { clearTimeout(timer); reject(new Error('Realtime subscription failed.')); } });

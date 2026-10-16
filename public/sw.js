@@ -1,8 +1,8 @@
-const CACHE = 'clipsync-static-v1';
+const CACHE = 'clipsync-static-v2';
 const SHELL = ['/offline.html', '/offline.css', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/maskable-512.png', '/icons/apple-touch-icon.png'];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)));
 });
 
 self.addEventListener('activate', event => {

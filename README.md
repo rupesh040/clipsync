@@ -1,12 +1,16 @@
 # Clipsync
 
-Copy here. Paste anywhere. A Next.js App Router application with a responsive editorial landing page, workspace, authenticated Supabase integration, and browser-installable PWA.
+A Next.js PWA and opt-in Chrome/Edge extension for clipboard text delivery over WebRTC. The existing responsive interface, account authentication, confirmed pairing, themes, and install controls are preserved. No native mobile framework is used.
 
-## Current status
+## What works in this release
 
-The source is prepared for Vercel. A new **Clipsync** Supabase project in Mumbai is provisioned, both migrations are applied, and local public connection settings are configured in ignored `.env.local`. Live SQL authorization/pairing tests passed and rolled back their test data. Email sign-in, two-browser delivery, production auth redirects, and actual mobile installation still require acceptance checks. No successful integrations are simulated. The earlier private Sites deployment is a separate, older static build; this release targets Vercel and has not overwritten it.
+- The PC extension detects copy events on explicitly permitted webpages. Optional desktop clipboard polling is best effort, not an OS-wide guarantee.
+- An authenticated WebRTC DataChannel delivers text to the selected authorized phone/browser. Received text updates React state immediately; no paste field or reload is required.
+- The phone displays complete multiline text, source, time, and a user-initiated Copy button with a manual-selection fallback.
+- Optional Sync Clipboard reads the phone clipboard only after a tap. The extension can write received text to the PC clipboard when enabled and supported.
+- Pause, disconnect, reconnect, direction controls, bounded deduplication/echo protection, acknowledgements, and optional local history are included.
 
-## Start locally
+## Start and build
 
 Use Node 22.13+ within Node 22:
 
@@ -16,54 +20,42 @@ npm run setup:env
 npm run dev
 ```
 
-Open http://localhost:3000. Without Supabase variables, the UI remains in setup mode. The environment script preserves any existing `.env.local`.
-
-## Configure and deploy
-
-Follow [the complete deployment runbook](docs/DEPLOYMENT.md) for Supabase project creation, migrations, email/PKCE authentication, Realtime, URL allowlists, GitHub creation/push, Vercel deployment, PWA installation, and production acceptance tests. Required public backend configuration:
-
-```dotenv
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
-```
-
-Use the public legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY` instead of the publishable key only when needed. `.env.example` lists all supported variables, including optional local verification settings. Never put service-role keys or secrets in public variables. On a fresh project, apply the initial-schema migration then the production-hardening migration in timestamp order. Both are already installed on the connected Clipsync project; do not rerun them there. Their local timestamps match its remote migration history. If upgrading a different project that already has the legacy 001 migration, apply only the hardening migration and reconcile its CLI migration history before pushing.
-
-## Verify
+Open http://localhost:3000. Without valid public Supabase configuration the app stays in setup mode. The setup script never overwrites an existing .env.local.
 
 ```powershell
-npm run lint
-npm run typecheck
-npm test
-npm run build
+npm run check
 npm start
 ```
 
-`npm run check` combines lint, types, unit tests, and build. CI runs these commands on main and pull requests. Unit/worker tests cover payload validation, public configuration and build-time secret guards, platform instructions, manifest/icons, and service worker privacy boundaries. They do **not** substitute for real Android installation or live backend testing.
+The check runs lint, type checking, unit/worker tests, and the production build. The prebuild also creates the extension in extension/dist and its downloadable ZIP at public/downloads/clipsync-extension.zip. For extension-only packaging use npm run build:extension.
 
-`npm run verify:backend` performs read-only live checks using your local configuration and optional test-user token. Missing setup or incomplete authenticated verification returns exit 2, not a false success. `supabase/tests/security.sql` is a transactional SQL integration suite, executed successfully on the new empty Clipsync project; all temporary test accounts and clips were rolled back. Further runs should use a dedicated test project.
+## Deployment and pairing
+
+Follow [the deployment runbook](docs/DEPLOYMENT.md) for Vercel variables, Supabase SMTP/email OTP, exact auth redirects, extension installation, pairing, short-lived TURN credentials, and acceptance checks.
+
+Public configuration: NEXT_PUBLIC_SITE_URL, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or legacy NEXT_PUBLIC_SUPABASE_ANON_KEY). Server-only TURN configuration and the exact extension-origin allowlist are documented in .env.example. Never expose service-role keys or permanent TURN secrets.
+
+The connected Mumbai Supabase project has all three timestamped migrations applied, including authenticated SDP/ICE signaling and revocation of the legacy clipboard-upload RPC. Do not reapply them there. A new environment needs all migrations in timestamp order.
+
+## Privacy and platform boundaries
+
+Clipboard payloads travel through the DataChannel, directly or through a TURN relay, not through a Supabase clipboard queue. Supabase retains account/device metadata and short-lived SDP/ICE, which can reveal network addresses. DataChannels encrypt transport; this is not independent hardware identity or protection against an account/service compromise.
+
+History is off by default; received text stays in memory. Optional history stores up to 50 plaintext entries locally for 1, 7, or 30 days. Expired entries are pruned when the app is used, not by a background OS deletion guarantee. Disabling local history removes saved entries. Old cloud records are not silently migrated: Settings provides an explicit legacy-cloud deletion action; existing server expiry/cleanup remains active.
+
+Both peers must be active, authorized, and online. Mobile browsers can suspend. No delivery is promised while the phone is closed, suspended, or offline. No offline clipboard queue, native Android app, APK/IPA, push notification, or universal system clipboard monitor is included. Service-worker updates wait rather than forcibly activating over a live connection.
+
+## Verification and release status
+
+See [verification evidence and remaining acceptance checks](docs/VERIFICATION.md) and [architecture/security details](docs/P2P-ARCHITECTURE.md). Automated tests and a real-browser WebRTC loopback passed; real extension-to-phone, mobile installation, and restrictive-network TURN acceptance remain pending. Production SMTP and deployment credentials/settings still require account-owner configuration. The older private Sites URL is not this release and has not been overwritten.
 
 ## Structure
 
-- `app/` — marketing, workspace, auth callback, and privacy routes.
-- `components/` — reusable interface, pairing UI, and global install controls.
-- `hooks/` — Supabase subscriptions, browser state, and clipboard workflow.
-- `lib/` — validation, environment guards, Clipboard API, and install platform detection.
-- `public/` — manifest, original app icons, service worker, and safe offline fallback.
-- `supabase/` — local configuration, migrations, and transactional authorization tests.
-- `scripts/` — safe environment bootstrap, reproducible icons, and live verification.
+- app/, components/, hooks/, lib/: existing PWA and receiver UI.
+- packages/protocol/: shared versioned, runtime-validated message protocol.
+- packages/transport/: WebRTC manager, authenticated signaling, ICE configuration.
+- extension/: Manifest V3 worker, offscreen bridge, popup, and permitted-site capture.
+- supabase/: three migrations and transactional security tests.
+- scripts/, tests/, docs/: repeatable packaging, verification, browser harness, and runbooks.
 
-## Security and platform boundaries
-
-Authentication uses email links with PKCE, persistent refreshable browser sessions, and server-validated identity. Open each sign-in link in the browser that requested it. RLS and restricted column grants isolate accounts. Pairing is short-lived, hashed, single-use, explicitly confirmed, and binds a specific joining device. Account-level transactional counters limit pairing creation and sends independently of clipboard deletion. Preferences are stored server-side; disabling history deletes stored clips atomically. Receipts are idempotent per receiving device.
-
-Device identifiers are account-owned metadata, not independent hardware keys. A stolen account session can read that account’s data and manage devices. Revocation blocks subsequent authorized sends/receipts; sign out all sessions for account compromise. This is not end-to-end encryption. HTTPS protects transport; configure your Supabase backup/storage policies and authentication abuse controls before public launch.
-
-History defaults off. Delivery text expires after 24 hours; opt-in history retains new clips for 1, 7, or 30 days. Expired text is excluded immediately and physically deleted hourly. No clipboard content is logged, used in analytics/notifications/URLs, or stored in browser persistent/offline caches. Displayed content exists in memory while the workspace is open and is cleared from the list when hidden; a later refresh can repopulate it only from the account backend.
-
-The PWA uses explicit Send/Copy actions, not continuous clipboard monitoring. Mobile pages can suspend. Background clipboard synchronization requires separate native companions or an extension and OS permissions. PWA installation neither creates an APK/IPA nor removes those limitations. Offline mode provides a public fallback page and never queues clipboard text.
-
-The build uses standard Next.js output for Vercel, including security headers and no-store service worker/auth callback responses. It no longer produces the earlier static `out/` export. No analytics, push messaging, or external app integration is configured.
-
-Design inspiration: https://diagramdesign.dev/ — editorial hierarchy, fine dividers, whitespace, and a restrained accent. All product copy and compositions are original.
+Design inspiration: https://diagramdesign.dev/ — original compositions retaining the existing editorial hierarchy and restrained accent.
