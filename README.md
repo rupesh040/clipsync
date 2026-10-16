@@ -17,7 +17,7 @@ No email, password, registration, SMTP, or end-user Supabase login is required. 
 
 The deployed Supabase Edge Function uses temporary role-bound capabilities, not Supabase Auth. Its WSS endpoint is in lib/deployment.ts. The existing project stores only private expiring room metadata, hashed capabilities, rate counters, and short-lived SDP/ICE. Clipboard text travels on the DataChannel, never through a database clipboard queue.
 
-The service survives Edge worker rotation using the shared private session store. Browser tokens remain memory-only; page reload/helper loss requires pairing again. Unused pairing credentials expire after five minutes; approved sessions after two hours. Either peer can revoke.
+The service survives Edge worker rotation using the shared private session store. Approved capabilities and pending transfers resume from browser-session storage after supported reload/helper restoration. Closing the browser or discarding that storage can require pairing again. Unused pairing credentials expire after five minutes; approved sessions after two hours. Either peer can revoke.
 
 The extension has a fixed public manifest key for a stable unpacked ID. It is not a permanent secret or hardware identity. The server allows that exact origin and the configured website/development origins.
 
@@ -48,4 +48,4 @@ The older Supabase account mode remains under Settings → Optional legacy accou
 
 ## Boundaries
 
-Keep both peers active and online. No closed/suspended/offline delivery guarantee or universal PC/mobile clipboard monitor is claimed. Capture is opt-in, history defaults off, and optional local history is plaintext and capped at 50 entries. Restrictive networks may need a separately provisioned TURN relay; support is implemented, but live relay acceptance still needs real credentials. No native mobile app or APK/IPA is included.
+Connections recover automatically, retaining healthy DataChannels and queued updates across interruptions. See docs/CONNECTION-RELIABILITY.md for the root causes, queue bounds, restoration, and tests. No guaranteed locked-screen/closed-app execution or universal PC/mobile clipboard monitor is claimed. Capture is opt-in, history defaults off, and optional local history is plaintext and capped at 50 entries. Restrictive networks may need a separately provisioned TURN relay; support is implemented, but live relay acceptance still needs real credentials. No native mobile app or APK/IPA is included.

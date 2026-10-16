@@ -11,7 +11,7 @@ function message():ClipboardMessage{return{version:1,id:crypto.randomUUID(),sour
 test('protocol preserves original text and rejects oversized UTF-8, malformed, stale, and misrouted messages',()=>{
   const value=message();assert.equal(decodeMessage(encodeMessage(value),secondId,firstId,value.session).type,'clipboard');
   assert.throws(()=>encodeMessage({...value,text:'🙂'.repeat(MAX_TEXT_BYTES)}));
-  for(const raw of ['{','[]',JSON.stringify({...value,text:'',extra:'data'}),JSON.stringify({...value,source:secondId}),JSON.stringify({...value,timestamp:Date.now()-180000}),JSON.stringify({...value,destination:firstId})])assert.throws(()=>decodeMessage(raw,secondId,firstId,value.session));
+  for(const raw of ['{','[]',JSON.stringify({...value,text:'',extra:'data'}),JSON.stringify({...value,source:secondId}),JSON.stringify({...value,timestamp:Date.now()-7_200_001}),JSON.stringify({...value,destination:firstId})])assert.throws(()=>decodeMessage(raw,secondId,firstId,value.session));
 });
 test('bounded deduplication expires old IDs and echo guard suppresses remotely written values',async()=>{
   const ids=new RecentIds(2,100);ids.add('one',0);ids.add('two',1);ids.add('three',2);assert.equal(ids.has('one',3),false);assert.equal(ids.has('three',103),false);
@@ -37,10 +37,10 @@ test('DataChannel manager delivers in both directions and ignores duplicates, ma
     await setup.second.send('Reverse text','user-read');assert.equal(setup.reverse[0].text,'Reverse text');
   }finally{await setup.stop();}
 });
-test('temporary signaling loss closes delivery and reconnects without duplicate peer instances',async()=>{
+test('temporary signaling loss retains the healthy peer and queues updates until authorization returns',async()=>{
   const setup=await pair();try{
-    setup.bus.available.get(firstId)!(false);await assert.rejects(setup.first.send('Not delivered'));
-    setup.bus.available.get(firstId)!(true);await waitFor(()=>setup.states.get(firstId)==='connected');await setup.first.send('After reconnect');assert.equal(setup.received.at(-1)?.text,'After reconnect');
+    const engine=setup.engines.get(firstId);setup.bus.available.get(firstId)!(false);const queued=await setup.first.enqueue('Queued while offline');assert.equal(setup.first.ledger.size,1);assert.equal(setup.received.length,0);
+    setup.bus.available.get(firstId)!(true);await queued.delivered;assert.equal(setup.engines.get(firstId),engine);assert.equal(setup.received[0].text,'Queued while offline');assert.equal(setup.first.ledger.size,0);
   }finally{await setup.stop();}
 });
 test('revocation rejects further sends and tears down the peer',async()=>{

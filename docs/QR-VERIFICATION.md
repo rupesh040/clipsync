@@ -3,7 +3,7 @@
 ## Evidence
 
 - Existing Next.js/React/PWA design, shared DataChannel protocol, local receiver, optional history, and old account mode preserved. No destructive auth/profile deletion.
-- All 34 unit/worker tests pass, including stable extension identity, deployed endpoint validation, healthy-focus stability, and revoking a session safely after abrupt socket loss.
+- All 46 unit/worker tests pass. The reliability follow-up adds retained healthy RTC links, durable offline queues, ACK-loss retries, stale-write prevention, capability restoration, automatic retries beyond eight failures, half-open socket recovery, automatic copy observation, and MV3 alarm/access-isolation coverage. See CONNECTION-RELIABILITY.md.
 - Lint/type checking, production Next.js build, Node signaling, Deno deployment sources, and MV3 ZIP build passed.
 - Deployed clipsync-signal Edge Function is ACTIVE; its live /health returned readiness.
 - Live database guest security transaction passed: service-role gate, consumed proof, phone cannot confirm, metadata transfer, invalid extra payload rejection, revocation, and anonymous RPC denial. Temporary test rows rolled back.
@@ -11,7 +11,7 @@
 - Two actual production-build PWA tabs passed manual-code review, matching verification codes, PC confirmation, Connected state, multiline Unicode delivery/ACK, automatic receiver display, and disconnect/revocation.
 - No horizontal overflow at 360/390/768/1024/1440px; viewport reset. Browser error logs empty.
 - Runtime-only npm audit: zero vulnerabilities. Five known high-severity Next ESLint development-tool advisories remain; no forced downgrade.
-- Automatic recovery after the live Edge worker’s 110-second rotation passed in the browser: WSS reattached, real WebRTC resumed, a new text message was acknowledged/displayed, and the temporary session was revoked.
+- Reliability browser acceptance passed against live WSS: the same two RTC connections survived the 110-second Edge rotation, 20 offline copies automatically queued/acknowledged, helper capability restoration rebuilt RTC without a fresh QR, React displayed the result, and the session was revoked.
 
 ## Remaining physical/network acceptance
 

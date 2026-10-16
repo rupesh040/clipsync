@@ -8,7 +8,8 @@ export class SupabaseSignaling implements Signaling {
 
   async authorize() {
     const { data, error } = await this.client.rpc('authorize_peer', { local_device: this.local, remote_device: this.remote });
-    return !error && data === true;
+    if(error)throw new Error('Authorization is temporarily unavailable.');
+    return data === true;
   }
 
   async start(onSignal: (signal: Signal) => void, onAvailable: (available: boolean) => void, onRevoked: () => void) {

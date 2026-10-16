@@ -26,6 +26,13 @@ async function route(message:Command,sender:chrome.runtime.MessageSender):Promis
     await helper();return chrome.runtime.sendMessage({...message,target:'offscreen'});
   }
   if(!trustedPage)return {ok:false,error:'Only extension pages may control this helper.'};
+  if(message.action==='recoveryGet'||message.action==='recoverySet'){
+    if(sender.url!==chrome.runtime.getURL('offscreen.html')||typeof message.key!=='string'||!message.key.startsWith('recovery:')||message.key.length>100)return{ok:false,error:'Recovery storage access rejected.'};
+    if(message.action==='recoveryGet'){const result=await chrome.storage.session.get(message.key);return{ok:true,value:result[message.key]??null};}
+    if(message.value===null)await chrome.storage.session.remove(message.key);
+    else{if(JSON.stringify(message.value).length>600_000)return{ok:false,error:'Recovery storage limit exceeded.'};await chrome.storage.session.set({[message.key]:message.value});}
+    return{ok:true};
+  }
   if(message.action==='storageGet'){
     if(typeof message.key!=='string'||!message.key.startsWith('auth:'))return {ok:false,error:'Storage key rejected.'};
     const result=await chrome.storage.local.get(message.key);return {ok:true,value:result[message.key]??null};
@@ -56,6 +63,13 @@ chrome.runtime.onMessage.addListener((message:Command,sender,respond)=>{
   if(message?.target!=='worker')return;
   void route(message,sender).then(respond).catch(()=>respond({ok:false,error:'Extension operation failed. Check permissions and the app origin.'}));return true;
 });
-chrome.runtime.onStartup.addListener(()=>{void settings().then(async current=>{await registerSites();if(current.enabled)await helper();});});
+async function recoverHelper(){
+  const stored=await chrome.storage.session.get('recovery:pair');const pair=stored['recovery:pair'] as {session?:{expiresAt?:number}}|undefined;
+  if(pair?.session?.expiresAt&&pair.session.expiresAt>Date.now())await helper();
+}
+async function startup(){await registerSites();await chrome.alarms.create('clipsync-recovery',{periodInMinutes:1});await recoverHelper();}
+chrome.runtime.onStartup.addListener(()=>{void startup().catch(()=>{});});
+chrome.runtime.onInstalled.addListener(()=>{void startup().catch(()=>{});});
+chrome.alarms.onAlarm.addListener(alarm=>{if(alarm.name==='clipsync-recovery')void recoverHelper().catch(()=>{});});
 chrome.permissions.onAdded.addListener(()=>{void registerSites();});
 chrome.permissions.onRemoved.addListener(()=>{void registerSites();});

@@ -9,6 +9,10 @@ import { ClipboardPeer } from '@/packages/transport/peer';
 import { SupabaseSignaling } from '@/packages/transport/supabase-signaling';
 import { fetchRtcConfiguration } from '@/packages/transport/configuration';
 import type { ConnectionState } from '@/packages/protocol';
+import {EchoGuard} from '@/packages/protocol';
+import {TransferLedger} from '@/packages/transport/ledger';
+import {tabStorage} from '@/packages/pairing/persistence';
+import {observeCopies} from '@/lib/copy-events';
 
 export function useClipsyncController() {
   const [user,setUser] = useState<User | null>(null);
@@ -28,6 +32,7 @@ export function useClipsyncController() {
   const [pulse,setPulse] = useState(false);
   const [events,setEvents] = useState<string[]>([]);
   const manager = useRef<ClipboardPeer | null>(null);
+  const ledgers=useRef(new Map<string,TransferLedger>()),echo=useRef(new EchoGuard());
   const epoch = useRef(0);
   const store = useMemo(() => localClipboardStore(user?.id || 'guest'),[user?.id]);
   const local = useSyncExternalStore(store.subscribe,store.getSnapshot,store.getServerSnapshot);
@@ -64,9 +69,9 @@ export function useClipsyncController() {
     if (!backend || !user) return;
     const client=backend;
     const channel=client.channel('device-metadata-'+user.id).on('postgres_changes',{event:'*',schema:'public',table:'devices',filter:'user_id=eq.'+user.id},() => {void refresh();}).subscribe(status => { if(status==='SUBSCRIBED') void refresh(); });
-    const visible=() => {if(document.visibilityState==='visible') {void refresh();setConnectionRevision(value => value+1);}};
-    const online=() => {void refresh();setConnectionRevision(value => value+1);};
-    const offline=() => {void manager.current?.stop();setConnectionState('disconnected');setConnectionDetail('This device is offline. Reconnect when networking returns.');};
+    const visible=() => {if(document.visibilityState==='visible') {void refresh();void manager.current?.recover();}};
+    const online=() => {void refresh();void manager.current?.recover();};
+    const offline=() => {setConnectionState('reconnecting');setConnectionDetail('This device is offline. Pending updates are queued locally.');};
     document.addEventListener('visibilitychange',visible);window.addEventListener('online',online);window.addEventListener('offline',offline);
     const timer=setInterval(() => {if(document.visibilityState==='visible') {void refresh();if(deviceId&&!paused) void client.rpc('heartbeat',{target_device:deviceId});}},30_000);
     return () => {epoch.current+=1;clearInterval(timer);document.removeEventListener('visibilitychange',visible);window.removeEventListener('online',online);window.removeEventListener('offline',offline);void client.removeChannel(channel);};
@@ -80,19 +85,22 @@ export function useClipsyncController() {
   const userId=user?.id;
   useEffect(() => {
     if(!backend || !userId || !currentAuthorized || !remoteAuthorized || !remoteId || paused || disconnected) return;
-    const peer=new ClipboardPeer({local:deviceId,remote:remoteId,signaling:new SupabaseSignaling(backend,deviceId,remoteId),configuration:() => fetchRtcConfiguration(backend!,deviceId,location.origin,setRelayConfigured),onState:(state,detail) => {setConnectionState(state);setConnectionDetail(detail);},onClipboard:message => {
+    const key=userId+'-'+deviceId+'-'+remoteId;if(!ledgers.current.has(key))ledgers.current.set(key,new TransferLedger(deviceId,remoteId,tabStorage('clipsync-account-outbox-'+key)));
+    const peer=new ClipboardPeer({local:deviceId,remote:remoteId,ledger:ledgers.current.get(key),signaling:new SupabaseSignaling(backend,deviceId,remoteId),configuration:() => fetchRtcConfiguration(backend!,deviceId,location.origin,setRelayConfigured),onState:(state,detail) => {setConnectionState(state);setConnectionDetail(detail);},onClipboard:async message => {
       if(local.direction==='send') throw new Error('Receiving is disabled on this device.');
+      await echo.current.received(message.text);
       store.receive(message,remoteName);setLastSync(Date.now());setPulse(true);setTimeout(() => setPulse(false),700);setEvents(previous => ['Clipboard received over WebRTC',...previous].slice(0,30));
     },onReceipt:timestamp => {setLastSync(timestamp);setEvents(previous => ['Peer acknowledged a clipboard message',...previous].slice(0,30));}});
     manager.current=peer;void peer.start();
     return () => {if(manager.current===peer) manager.current=null;void peer.stop(false);};
   },[userId,deviceId,remoteId,currentAuthorized,remoteAuthorized,remoteName,paused,disconnected,store,local.direction,connectionRevision]);
 
-  async function send(text: string, origin: 'manual'|'user-read'='manual') {
+  const send=useCallback(async(text: string, origin: 'manual'|'user-read'|'page-copy'='manual')=>{
     if(local.direction==='receive') throw new Error('This device is set to receive only.');
     if(!manager.current || paused || disconnected) throw new Error('Connect an authorized peer first. Nothing was uploaded or queued.');
-    await manager.current.send(text,origin);notify('The paired device acknowledged receipt.');
-  }
+    const queued=await manager.current.enqueue(text,origin);notify('Queued locally. Delivery retries automatically until acknowledged.');void queued.delivered.then(()=>notify('The paired device acknowledged receipt.')).catch(()=>{});
+  },[local.direction,paused,disconnected,notify]);
+  useEffect(()=>observeCopies(document,text=>{if(paused||disconnected||!manager.current||local.direction==='receive')return;return echo.current.shouldSend(text).then(allowed=>{if(allowed)return send(text,'page-copy');}).catch(()=>{echo.current.reset();notify('Copied text could not be queued. Check the connection and local storage.');});}),[send,paused,disconnected,local.direction,notify]);
   async function syncClipboard() {
     if(!window.isSecureContext || !navigator.clipboard?.readText) throw new Error('Clipboard reading is unavailable here. Use a supported HTTPS browser; incoming text still works.');
     let text: string;
@@ -118,8 +126,9 @@ export function useClipsyncController() {
   }
   function selectPeer(value:string) {setSelectedPeer(value);if(user) localStorage.setItem('clipsync-peer-'+user.id,value);}
   function reconnect() {setDisconnected(false);setConnectionRevision(value => value+1);void refresh();}
+  async function disconnect(){setDisconnected(true);await manager.current?.stop();for(const ledger of ledgers.current.values())await ledger.clear();ledgers.current.clear();}
   const state:ConnectionState=!currentAuthorized||!remoteAuthorized?pairingUntil?'pairing':'unpaired':paused||disconnected?'disconnected':connectionState;
   const status=!backend?(publicConfiguration.error?'Configuration error':'Waiting for setup'):!user?'Sign in required':paused?'Sync paused':state[0].toUpperCase()+state.slice(1);
-  return {user,devices,deviceId,loading,configured:Boolean(backend),status,notice,notify,paused,setPaused,history:local.enabled,retention:local.days,clips:local.items,latest:local.latest,storageError:local.storageError,pulse,events,send,mutate,preferences,pairing,cancelPairingState:()=>setPairingUntil(0),refresh,peerId:remoteId,selectPeer,connectionState:state,connectionDetail:state==='pairing'?'Waiting for explicit confirmation on the initiating device.':connectionDetail,lastSync,relayConfigured,reconnect,disconnect:() => setDisconnected(true),syncClipboard,direction:local.direction,setDirection:direction,clearLegacyHistory,copyText};
+  return {user,devices,deviceId,loading,configured:Boolean(backend),status,notice,notify,paused,setPaused,history:local.enabled,retention:local.days,clips:local.items,latest:local.latest,storageError:local.storageError,pulse,events,send,mutate,preferences,pairing,cancelPairingState:()=>setPairingUntil(0),refresh,peerId:remoteId,selectPeer,connectionState:state,connectionDetail:state==='pairing'?'Waiting for explicit confirmation on the initiating device.':connectionDetail,lastSync,relayConfigured,reconnect,disconnect,syncClipboard,direction:local.direction,setDirection:direction,clearLegacyHistory,copyText};
 }
 export type ClipsyncState=ReturnType<typeof useClipsyncController>;

@@ -18,9 +18,9 @@ The signaling service is deployed in the existing Supabase project. No Render ac
 4. Joining consumes both QR/manual proof atomically and creates one pending phone with its own temporary token. Replays, expired codes, and wrong proofs fail.
 5. Compare the random verification code on both screens. Only the initiating PC may confirm the phone. Device names are self-reported, not identity proof.
 6. Approval authorizes exactly those two device IDs for at most two hours. Each signaling/configuration/authorization/revoke request carries the temporary role token and must match its socket binding.
-7. Reconnection reattaches the capability and supersedes an older socket for that role. Tokens remain in client/helper memory, not URLs, persistent browser storage, or QR history.
+7. Reconnection reattaches the capability and supersedes an older socket for that role. Approved capabilities are retained only in local browser-session recovery storage, never URLs or QR history. Reopening a second copy of the same restored session can supersede its older socket; independently paired tabs remain separate.
 8. Either peer can revoke. Local transport stops immediately. Connected Edge peers learn revocation through the next metadata check, normally about a second; network delays and the transport's short authorization lease apply. If the server cannot confirm, the UI does not claim successful remote revocation.
-9. Page reload or offscreen-helper loss requires a fresh pairing. Worker rotation alone resumes the existing unexpired session. No indefinite remembered-pairing feature is implemented.
+9. Approved, unexpired sessions and pending transfers resume from PWA sessionStorage or extension chrome.storage.session after supported reload/helper restoration. Healthy RTC channels survive WSS rotation. These stores are browser-session scoped, not indefinite remembered pairing. See CONNECTION-RELIABILITY.md.
 
 A stolen QR can request its one join; a stolen device token can use that role until expiry/revocation. Keep codes private and approve only devices in front of you. Encrypted WebRTC transport is not protection against a compromised client or signaling service.
 
@@ -90,7 +90,7 @@ This alternative holds rooms in bounded RAM, so its server restart loses session
 
 qr-scanner decodes camera frames locally using BarcodeDetector or its bundled worker. Permission starts only after Scan to Pair. Scanning frame, supported flashlight, manual-code review, and stop/destroy/track cleanup on scan/cancel/hide/pagehide/unmount are implemented. No camera frames are uploaded.
 
-The phone does not need clipboard-read permission to receive. Copy confirms success only after API completion and offers selection fallback. The PC extension never promises universal application monitoring. Its offscreen document owns WebRTC/clipboard operations; worker restart can recover while that context survives, but browser/helper termination requires pairing again.
+The phone does not need clipboard-read permission to receive. Copy confirms success only after API completion and offers selection fallback. The PC extension never promises universal application monitoring. Its offscreen document owns WebRTC/clipboard operations; the recovery alarm can recreate a missing helper while unexpired browser-session credentials survive. Full browser restart or discarded recovery storage requires pairing again.
 
 History defaults off; optional plaintext browser history is limited to 50 entries and 1/7/30-day pruning when loaded/changed. No text logs or notifications. Service-worker caching excludes sessions, clipboard/API data, and signed-in pages; updates wait instead of forcibly interrupting a live page. Closed, suspended, or offline delivery is not guaranteed.
 
